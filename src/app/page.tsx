@@ -496,7 +496,7 @@ export default function UserLoginPage() {
 
             <div style={{ textAlign: 'center', marginTop: '12px' }}>
               <a 
-                href="https://nexus-admin-fc9ff.web.app/" 
+                href="https://account.nexus-vision.net/" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 style={{ color: '#16a34a', fontSize: '13px', fontWeight: '600', textDecoration: 'underline' }}
