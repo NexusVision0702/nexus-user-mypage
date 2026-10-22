@@ -1,8 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { docClient, USERS_TABLE } from '../lib/dynamodb';
-import { GetCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
 export default function UserLoginPage() {
   const [step, setStep] = useState<'login' | 'mfa' | 'dashboard' | 'confirm' | 'email_mfa' | 'forgot_password' | 'forgot_reset'>('login');
@@ -48,26 +46,13 @@ export default function UserLoginPage() {
     const fetchUserData = async () => {
       if (step === 'dashboard' && currentUserUid && !isDataLoaded) {
         try {
-          const command = new GetCommand({
-            TableName: USERS_TABLE,
-            Key: { uid: currentUserUid },
-          });
-          const response = await docClient.send(command);
-
-          let data: any = response.Item || null;
-          if (!data) {
-            const queryCommand = new QueryCommand({
-              TableName: USERS_TABLE,
-              IndexName: 'email-index',
-              KeyConditionExpression: 'email = :email',
-              ExpressionAttributeValues: { ':email': currentUserUid },
-            });
-            const queryResult = await docClient.send(queryCommand);
-            if (queryResult.Items && queryResult.Items.length > 0) {
-              data = queryResult.Items[0];
-            }
+          const res = await fetch(`/api/user?uid=${encodeURIComponent(currentUserUid)}`);
+          const result = await res.json();
+          if (!res.ok) {
+            throw new Error(result.error || 'データ取得に失敗しました');
           }
 
+          const data = result.user;
           if (data) {
             let pCode = data.postalCode || '';
             let pref = data.prefecture || '';
@@ -122,7 +107,7 @@ export default function UserLoginPage() {
             setFormData(loadedData);
             setIsDataLoaded(true);
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error('データ取得エラー:', error);
         }
       }
@@ -214,38 +199,32 @@ export default function UserLoginPage() {
 
     try {
       const trimmedEmail = email.trim().toLowerCase();
-      const queryCommand = new QueryCommand({
-        TableName: USERS_TABLE,
-        IndexName: 'email-index',
-        KeyConditionExpression: 'email = :email',
-        ExpressionAttributeValues: { ':email': trimmedEmail },
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail, password }),
       });
-      const queryResult = await docClient.send(queryCommand);
+      const result = await res.json();
 
-      if (!queryResult.Items || queryResult.Items.length === 0) {
-        throw new Error('入力されたメールアドレスのユーザーが見つかりません。');
+      if (!res.ok) {
+        throw new Error(result.error || 'ログインに失敗しました');
       }
 
-      const userData = queryResult.Items[0] as any;
-
-      if (userData.password !== password) {
-        throw new Error('パスワードが間違っています。');
-      }
-
-      setCurrentUserUid(userData.uid);
+      setCurrentUserUid(result.uid);
 
       const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedCode(verificationCode);
+      const generatedCode = verificationCode;
+      setGeneratedCode(generatedCode);
 
-      const response = await fetch('/api/send-email', {
+      const emailRes = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmedEmail, code: verificationCode }),
       });
 
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'メール送信に失敗しました');
+      const emailResult = await emailRes.json();
+      if (!emailRes.ok) {
+        throw new Error(emailResult.error || 'メール送信に失敗しました');
       }
 
       setStep('mfa');
@@ -280,19 +259,14 @@ export default function UserLoginPage() {
 
     try {
       const trimmedForgotEmail = forgotEmail.trim().toLowerCase();
-      const queryCommand = new QueryCommand({
-        TableName: USERS_TABLE,
-        IndexName: 'email-index',
-        KeyConditionExpression: 'email = :email',
-        ExpressionAttributeValues: { ':email': trimmedForgotEmail },
-      });
-      const queryResult = await docClient.send(queryCommand);
+      const resUser = await fetch(`/api/user?uid=${encodeURIComponent(trimmedForgotEmail)}`);
+      const resultUser = await resUser.json();
 
-      if (!queryResult.Items || queryResult.Items.length === 0) {
+      if (!resUser.ok || !resultUser.user) {
         throw new Error('登録されていないメールアドレスです。');
       }
 
-      setForgotTargetDocId(queryResult.Items[0].uid as string);
+      setForgotTargetDocId(resultUser.user.uid);
 
       const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
       setGeneratedCode(verificationCode);
@@ -340,16 +314,19 @@ export default function UserLoginPage() {
 
     try {
       setAuthLoading(true);
-      const command = new UpdateCommand({
-        TableName: USERS_TABLE,
-        Key: { uid: forgotTargetDocId },
-        UpdateExpression: 'SET password = :pwd, updatedAt = :updatedAt',
-        ExpressionAttributeValues: {
-          ':pwd': newPasswordReset,
-          ':updatedAt': new Date().toISOString(),
-        },
+      const res = await fetch('/api/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: forgotTargetDocId,
+          formData: {
+            ...initialData,
+            newPassword: newPasswordReset,
+          }
+        }),
       });
-      await docClient.send(command);
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
 
       alert('パスワードを正常に再設定しました！新しいパスワードでログインしてください。');
       setStep('login');
@@ -421,60 +398,19 @@ export default function UserLoginPage() {
   const executeSave = async () => {
     if (!currentUserUid) return;
     try {
-      const fullAddress = `〒${formData.postalCode} ${formData.prefecture}${formData.city}${formData.addressLine} ${formData.building}`.trim();
-
-      const updateExpressionParts = [
-        'lastName = :lastName',
-        'firstName = :firstName',
-        'lastNameKana = :lastNameKana',
-        'firstNameKana = :firstNameKana',
-        'birthdate = :birthdate',
-        'phone = :phone',
-        'postalCode = :postalCode',
-        'prefecture = :prefecture',
-        'city = :city',
-        'addressLine = :addressLine',
-        'building = :building',
-        'address = :address',
-        'email = :email',
-        'updatedAt = :updatedAt'
-      ];
-
-      const expressionAttributeValues: any = {
-        ':lastName': formData.lastName,
-        ':firstName': formData.firstName,
-        ':lastNameKana': formData.lastNameKana,
-        ':firstNameKana': formData.firstNameKana,
-        ':birthdate': formData.birthdate,
-        ':phone': formData.phone,
-        ':postalCode': formData.postalCode,
-        ':prefecture': formData.prefecture,
-        ':city': formData.city,
-        ':addressLine': formData.addressLine,
-        ':building': formData.building,
-        ':address': fullAddress,
-        ':email': formData.email.trim().toLowerCase(),
-        ':updatedAt': new Date().toISOString(),
-      };
-
-      if (formData.newPassword) {
-        if (formData.newPassword.length < 6) {
-          setUpdateMessage('エラー: パスワードは6文字以上で入力してください。');
-          setStep('dashboard');
-          return;
-        }
-        updateExpressionParts.push('password = :password');
-        expressionAttributeValues[':password'] = formData.newPassword;
-      }
-
-      const command = new UpdateCommand({
-        TableName: USERS_TABLE,
-        Key: { uid: currentUserUid },
-        UpdateExpression: `SET ${updateExpressionParts.join(', ')}`,
-        ExpressionAttributeValues: expressionAttributeValues,
+      setAuthLoading(true);
+      const res = await fetch('/api/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: currentUserUid,
+          formData,
+        }),
       });
-
-      await docClient.send(command);
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || 'データの保存に失敗しました');
+      }
 
       setInitialData({ ...formData, currentPasswordForAuth: '', newPassword: '', confirmPassword: '' });
       setIsDataLoaded(false);
@@ -482,8 +418,10 @@ export default function UserLoginPage() {
       setStep('dashboard');
       setTimeout(() => setUpdateMessage(''), 4000);
     } catch (error: any) {
-      setUpdateMessage('エラー: データの保存に失敗しました');
+      setUpdateMessage(`エラー: ${error.message || 'データの保存に失敗しました'}`);
       setStep('dashboard');
+    } finally {
+      setAuthLoading(false);
     }
   };
 
