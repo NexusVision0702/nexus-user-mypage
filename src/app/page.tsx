@@ -54,6 +54,16 @@ export default function UserLoginPage() {
 
           const data = result.user;
           if (data) {
+            // ★ name（例: "挾間 義尚"）をスペースで分割して姓と名に割り振る
+            const nameParts = (data.name || '').split(/[\s ]+/);
+            const lName = data.lastName || nameParts[0] || '';
+            const fName = data.firstName || nameParts[1] || '';
+
+            // ★ furigana（例: "ハサマ ヨシヒサ"）をスペースで分割してセイとメイに割り振る
+            const kanaParts = (data.furigana || '').split(/[\s ]+/);
+            const lNameKana = data.lastNameKana || kanaParts[0] || '';
+            const fNameKana = data.firstNameKana || kanaParts[1] || '';
+
             let pCode = data.postalCode || '';
             let pref = data.prefecture || '';
             let cty = data.city || '';
@@ -85,10 +95,10 @@ export default function UserLoginPage() {
             }
 
             const loadedData = {
-              lastName: data.lastName || '',
-              firstName: data.firstName || '',
-              lastNameKana: data.lastNameKana || '',
-              firstNameKana: data.firstNameKana || '',
+              lastName: lName,
+              firstName: fName,
+              lastNameKana: lNameKana,
+              firstNameKana: fNameKana,
               birthdate: data.birthdate || '',
               phone: data.phone || '',
               postalCode: pCode,
@@ -210,7 +220,6 @@ export default function UserLoginPage() {
         throw new Error(result.error || 'ログインに失敗しました');
       }
 
-      // プライマリキーであるメールアドレスをセット
       setCurrentUserUid(trimmedEmail);
 
       const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -410,7 +419,6 @@ export default function UserLoginPage() {
         throw new Error(result.error || 'データの保存に失敗しました');
       }
 
-      // メールアドレスが変更された場合は、currentUserUidも新しいものに更新
       if (currentUserUid !== formData.email.trim().toLowerCase()) {
         setCurrentUserUid(formData.email.trim().toLowerCase());
       }
