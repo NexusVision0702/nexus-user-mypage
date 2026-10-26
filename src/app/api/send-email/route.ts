@@ -24,7 +24,7 @@ export async function POST(request: Request) {
 
     // Resendを使ったメール送信処理
     const data = await resend.emails.send({
-      from: 'support@nexus-vision.net', // ご指定の送信元アドレス
+      from: 'NexusVision株式会社 <support@nexus-vision.net>', // ★ 会社名付きに変更
       to: [email],
       subject: '【ネクビジョ】2段階認証コード',
       html: `
