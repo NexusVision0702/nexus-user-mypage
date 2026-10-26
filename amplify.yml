@@ -6,6 +6,8 @@ frontend:
         - npm ci
     build:
       commands:
+        # ↓ これを追加：Amplifyの環境変数をNext.jsが読める.env.productionに書き出す
+        - env >> .env.production
         - npm run build
   artifacts:
     baseDirectory: .next
