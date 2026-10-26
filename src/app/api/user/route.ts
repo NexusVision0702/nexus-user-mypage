@@ -1,37 +1,25 @@
 import { NextResponse } from 'next/server';
 import { docClient, USERS_TABLE } from '../../../lib/dynamodb';
-import { GetCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
 // ユーザー情報取得 (GET)
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const uidOrEmail = searchParams.get('uid');
+    const emailOrUid = searchParams.get('uid'); // ※フロントから渡されるメールアドレス等
 
-    if (!uidOrEmail) {
-      return NextResponse.json({ error: 'uidが指定されていません。' }, { status: 400 });
+    if (!emailOrUid) {
+      return NextResponse.json({ error: 'メールアドレスが指定されていません。' }, { status: 400 });
     }
 
-    let command = new GetCommand({
+    // テーブルのキーは email なので、email で直接取得します
+    const command = new GetCommand({
       TableName: USERS_TABLE,
-      Key: { uid: uidOrEmail },
+      Key: { email: emailOrUid.trim().toLowerCase() },
     });
-    let response = await docClient.send(command);
+    const response = await docClient.send(command);
 
-    let data: any = response.Item || null;
-    if (!data) {
-      const queryCommand = new QueryCommand({
-        TableName: USERS_TABLE,
-        IndexName: 'email-index',
-        KeyConditionExpression: 'email = :email',
-        ExpressionAttributeValues: { ':email': uidOrEmail },
-      });
-      const queryResult = await docClient.send(queryCommand);
-      if (queryResult.Items && queryResult.Items.length > 0) {
-        data = queryResult.Items[0];
-      }
-    }
-
+    const data = response.Item || null;
     if (!data) {
       return NextResponse.json({ error: 'ユーザーが見つかりません。' }, { status: 404 });
     }
@@ -47,12 +35,13 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { uid, formData } = body;
+    const { uid, formData } = body; // ※ここの uid にはメールアドレスが入っている想定
 
-    if (!uid || !formData) {
+    if (!formData || !formData.email) {
       return NextResponse.json({ error: '必要なデータが不足しています。' }, { status: 400 });
     }
 
+    const targetEmail = formData.email.trim().toLowerCase();
     const fullAddress = `〒${formData.postalCode} ${formData.prefecture}${formData.city}${formData.addressLine} ${formData.building}`.trim();
 
     const updateExpressionParts = [
@@ -68,7 +57,6 @@ export async function POST(request: Request) {
       'addressLine = :addressLine',
       'building = :building',
       'address = :address',
-      'email = :email',
       'updatedAt = :updatedAt'
     ];
 
@@ -85,7 +73,6 @@ export async function POST(request: Request) {
       ':addressLine': formData.addressLine,
       ':building': formData.building,
       ':address': fullAddress,
-      ':email': formData.email.trim().toLowerCase(),
       ':updatedAt': new Date().toISOString(),
     };
 
@@ -97,9 +84,10 @@ export async function POST(request: Request) {
       expressionAttributeValues[':password'] = formData.newPassword;
     }
 
+    // テーブルのパーティションキー（email）を使って更新対象を指定
     const command = new UpdateCommand({
       TableName: USERS_TABLE,
-      Key: { uid },
+      Key: { email: targetEmail },
       UpdateExpression: `SET ${updateExpressionParts.join(', ')}`,
       ExpressionAttributeValues: expressionAttributeValues,
     });
