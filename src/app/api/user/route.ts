@@ -6,13 +6,12 @@ import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const emailOrUid = searchParams.get('uid'); // ※フロントから渡されるメールアドレス等
+    const emailOrUid = searchParams.get('uid');
 
     if (!emailOrUid) {
       return NextResponse.json({ error: 'メールアドレスが指定されていません。' }, { status: 400 });
     }
 
-    // テーブルのキーは email なので、email で直接取得します
     const command = new GetCommand({
       TableName: USERS_TABLE,
       Key: { email: emailOrUid.trim().toLowerCase() },
@@ -35,7 +34,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { uid, formData } = body; // ※ここの uid にはメールアドレスが入っている想定
+    const { uid, formData } = body;
 
     if (!formData || !formData.email) {
       return NextResponse.json({ error: '必要なデータが不足しています。' }, { status: 400 });
@@ -44,11 +43,13 @@ export async function POST(request: Request) {
     const targetEmail = formData.email.trim().toLowerCase();
     const fullAddress = `〒${formData.postalCode} ${formData.prefecture}${formData.city}${formData.addressLine} ${formData.building}`.trim();
 
+    // 姓と名を結合してDynamoDBの name / furigana 属性に合わせる
+    const fullName = `${formData.lastName || ''} ${formData.firstName || ''}`.trim();
+    const fullKana = `${formData.lastNameKana || ''} ${formData.firstNameKana || ''}`.trim();
+
     const updateExpressionParts = [
-      'lastName = :lastName',
-      'firstName = :firstName',
-      'lastNameKana = :lastNameKana',
-      'firstNameKana = :firstNameKana',
+      '#n = :name',
+      'furigana = :furigana',
       'birthdate = :birthdate',
       'phone = :phone',
       'postalCode = :postalCode',
@@ -60,11 +61,14 @@ export async function POST(request: Request) {
       'updatedAt = :updatedAt'
     ];
 
+    // DynamoDBの予約語である "name" を回避するためのエイリアス
+    const expressionAttributeNames: any = {
+      '#n': 'name',
+    };
+
     const expressionAttributeValues: any = {
-      ':lastName': formData.lastName,
-      ':firstName': formData.firstName,
-      ':lastNameKana': formData.lastNameKana,
-      ':firstNameKana': formData.firstNameKana,
+      ':name': fullName,
+      ':furigana': fullKana,
       ':birthdate': formData.birthdate,
       ':phone': formData.phone,
       ':postalCode': formData.postalCode,
@@ -84,11 +88,11 @@ export async function POST(request: Request) {
       expressionAttributeValues[':password'] = formData.newPassword;
     }
 
-    // テーブルのパーティションキー（email）を使って更新対象を指定
     const command = new UpdateCommand({
       TableName: USERS_TABLE,
       Key: { email: targetEmail },
       UpdateExpression: `SET ${updateExpressionParts.join(', ')}`,
+      ExpressionAttributeNames: expressionAttributeNames,
       ExpressionAttributeValues: expressionAttributeValues,
     });
 
