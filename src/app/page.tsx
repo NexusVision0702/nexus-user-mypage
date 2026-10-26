@@ -42,6 +42,19 @@ export default function UserLoginPage() {
   const [updateMessage, setUpdateMessage] = useState('');
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
+  // ★ 日本語の生年月日（例: "1999年7月25日"）を date input 用（"1999-07-25"）に変換するヘルパー
+  const parseBirthdate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const match = dateStr.match(/([0-9]{4})年([0-9]{1,2})月([0-9]{1,2})日/);
+    if (match) {
+      const y = match[1];
+      const m = match[2].padStart(2, '0');
+      const d = match[3].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return dateStr; // すでに "YYYY-MM-DD" の場合など
+  };
+
   useEffect(() => {
     const fetchUserData = async () => {
       if (step === 'dashboard' && currentUserUid && !isDataLoaded) {
@@ -54,12 +67,10 @@ export default function UserLoginPage() {
 
           const data = result.user;
           if (data) {
-            // ★ name（例: "挾間 義尚"）をスペースで分割して姓と名に割り振る
             const nameParts = (data.name || '').split(/[\s ]+/);
             const lName = data.lastName || nameParts[0] || '';
             const fName = data.firstName || nameParts[1] || '';
 
-            // ★ furigana（例: "ハサマ ヨシヒサ"）をスペースで分割してセイとメイに割り振る
             const kanaParts = (data.furigana || '').split(/[\s ]+/);
             const lNameKana = data.lastNameKana || kanaParts[0] || '';
             const fNameKana = data.firstNameKana || kanaParts[1] || '';
@@ -99,7 +110,7 @@ export default function UserLoginPage() {
               firstName: fName,
               lastNameKana: lNameKana,
               firstNameKana: fNameKana,
-              birthdate: data.birthdate || '',
+              birthdate: parseBirthdate(data.birthdate || ''), // ★ 変換処理を適用
               phone: data.phone || '',
               postalCode: pCode,
               prefecture: pref,
