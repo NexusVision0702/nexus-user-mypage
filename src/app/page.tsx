@@ -210,11 +210,11 @@ export default function UserLoginPage() {
         throw new Error(result.error || 'ログインに失敗しました');
       }
 
-      setCurrentUserUid(result.uid);
+      // プライマリキーであるメールアドレスをセット
+      setCurrentUserUid(trimmedEmail);
 
       const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-      const generatedCode = verificationCode;
-      setGeneratedCode(generatedCode);
+      setGeneratedCode(verificationCode);
 
       const emailRes = await fetch('/api/send-email', {
         method: 'POST',
@@ -251,7 +251,6 @@ export default function UserLoginPage() {
     }, 500);
   };
 
-  // パスワードをお忘れの方：メール送信処理
   const handleSendForgotCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthLoading(true);
@@ -266,7 +265,7 @@ export default function UserLoginPage() {
         throw new Error('登録されていないメールアドレスです。');
       }
 
-      setForgotTargetDocId(resultUser.user.uid);
+      setForgotTargetDocId(resultUser.user.email);
 
       const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
       setGeneratedCode(verificationCode);
@@ -290,7 +289,6 @@ export default function UserLoginPage() {
     }
   };
 
-  // パスワードをお忘れの方：コード検証＆新パスワード保存
   const handleResetPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -410,6 +408,11 @@ export default function UserLoginPage() {
       const result = await res.json();
       if (!res.ok) {
         throw new Error(result.error || 'データの保存に失敗しました');
+      }
+
+      // メールアドレスが変更された場合は、currentUserUidも新しいものに更新
+      if (currentUserUid !== formData.email.trim().toLowerCase()) {
+        setCurrentUserUid(formData.email.trim().toLowerCase());
       }
 
       setInitialData({ ...formData, currentPasswordForAuth: '', newPassword: '', confirmPassword: '' });
