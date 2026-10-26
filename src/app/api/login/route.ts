@@ -25,6 +25,14 @@ export async function POST(request: Request) {
 
     const userData = queryResult.Items[0] as any;
 
+    // ★ ステータスが 'active'（本登録済み）かどうかを厳格にチェック
+    if (userData.status !== 'active') {
+      return NextResponse.json(
+        { error: '本登録が完了していません。メールの認証リンクから本登録を完了させてください。' },
+        { status: 403 }
+      );
+    }
+
     if (userData.password !== password) {
       return NextResponse.json({ error: 'パスワードが間違っています。' }, { status: 401 });
     }
