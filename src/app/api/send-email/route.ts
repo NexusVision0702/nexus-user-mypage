@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
-// Resendの初期化（環境変数からAPIキーを読み込みます）
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(request: Request) {
   try {
+    // ★ リクエストが走るタイミング（関数内）でAPIキーを安全に読み込んで初期化する
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'RESEND_API_KEY is not configured' },
+        { status: 500 }
+      );
+    }
+    const resend = new Resend(apiKey);
+
     const { email, code } = await request.json();
 
     if (!email || !code) {
