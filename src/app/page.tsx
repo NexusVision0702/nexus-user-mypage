@@ -110,7 +110,7 @@ export default function UserLoginPage() {
               firstName: fName,
               lastNameKana: lNameKana,
               firstNameKana: fNameKana,
-              birthdate: parseBirthdate(data.birthdate || ''), // ★ 変換処理を適用
+              birthdate: parseBirthdate(data.birthdate || ''),
               phone: data.phone || '',
               postalCode: pCode,
               prefecture: pref,
@@ -261,7 +261,8 @@ export default function UserLoginPage() {
     setErrorMessage('');
 
     setTimeout(() => {
-      if (inputCode === generatedCode || inputCode === '123456') { 
+      // ★ セキュリティ修正: 固定コード '123456' を排除し、正当な generatedCode のみ許可
+      if (inputCode === generatedCode) { 
         setStep('dashboard');
         setIsDataLoaded(false);
       } else {
@@ -313,7 +314,8 @@ export default function UserLoginPage() {
     e.preventDefault();
     setErrorMessage('');
 
-    if (inputCode !== generatedCode && inputCode !== '123456') {
+    // ★ セキュリティ修正: 固定コード '123456' を排除
+    if (inputCode !== generatedCode) {
       setErrorMessage('認証コードが間違っています。');
       return;
     }
@@ -406,7 +408,8 @@ export default function UserLoginPage() {
 
   const handleVerifyEmailMfa = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputCode === generatedCode || inputCode === '123456') {
+    // ★ セキュリティ修正: 固定コード '123456' を排除
+    if (inputCode === generatedCode) {
       await executeSave();
     } else {
       setErrorMessage('認証コードが間違っています。');
