@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { docClient, USERS_TABLE } from '../../../lib/dynamodb';
-import { GetCommand, PutCommand, DeleteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import bcrypt from 'bcryptjs'; // または 'bcrypt'
+import { GetCommand, DeleteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import bcrypt from 'bcryptjs';
 
 // ユーザー情報取得 (GET)
 export async function GET(request: Request) {
@@ -43,9 +43,6 @@ export async function POST(request: Request) {
 
     const oldEmail = (uid || formData.email).trim().toLowerCase();
     const newEmail = formData.email.trim().toLowerCase();
-    const fullAddress = `〒${formData.postalCode} ${formData.prefecture}${formData.city}${formData.addressLine} ${formData.building}`.trim();
-    const fullName = `${formData.lastName || ''} ${formData.firstName || ''}`.trim();
-    const fullKana = `${formData.lastNameKana || ''} ${formData.firstNameKana || ''}`.trim();
 
     // 1. 既存のユーザーデータを取得
     const getCommand = new GetCommand({
@@ -55,52 +52,53 @@ export async function POST(request: Request) {
     const existingRes = await docClient.send(getCommand);
     const existingUser = existingRes.Item || {};
 
-    // 2. パスワードの処理（変更がある場合は必ずハッシュ化する）
+    // 2. パスワードの処理
     let passwordToSave = existingUser.password || '';
     if (formData.newPassword) {
       if (formData.newPassword.length < 6) {
         return NextResponse.json({ error: 'パスワードは6文字以上で入力してください。' }, { status: 400 });
       }
-      // ★ ここで平文ではなく確実にハッシュ化する
       const salt = await bcrypt.genSalt(10);
       passwordToSave = await bcrypt.hash(formData.newPassword, salt);
     }
 
-    // 3. 新しいメールアドレス（または更新後）でデータを保存（Put）
-    const putCommand = new PutCommand({
+    // 3. UpdateCommand を使って必要な項目だけをピンポイントで更新
+    const updateCommand = new UpdateCommand({
       TableName: USERS_TABLE,
-      Item: {
-        ...existingUser,
-        email: newEmail,
-        name: fullName,
-        furigana: fullKana,
-        lastName: formData.lastName,
-        firstName: formData.firstName,
-        lastNameKana: formData.lastNameKana,
-        firstNameKana: formData.firstNameKana,
-        birthdate: formData.birthdate,
-        phone: formData.phone,
-        postalCode: formData.postalCode,
-        prefecture: formData.prefecture,
-        city: formData.city,
-        addressLine: formData.addressLine,
-        building: formData.building,
-        address: fullAddress,
-        password: passwordToSave,
-        status: 'active', // ステータスを確実に active に設定
-        updatedAt: new Date().toISOString(),
+      Key: { email: oldEmail },
+      UpdateExpression: `
+        SET #name = :name,
+            #furigana = :furigana,
+            #birthdate = :birthdate,
+            #gender = :gender,
+            #phone = :phone,
+            #address = :address,
+            #password = :password,
+            #updatedAt = :updatedAt
+      `,
+      ExpressionAttributeNames: {
+        '#name': 'name',
+        '#furigana': 'furigana',
+        '#birthdate': 'birthdate',
+        '#gender': 'gender',
+        '#phone': 'phone',
+        '#address': 'address',
+        '#password': 'password',
+        '#updatedAt': 'updatedAt',
+      },
+      ExpressionAttributeValues: {
+        ':name': formData.name || existingUser.name || '',
+        ':furigana': formData.furigana || existingUser.furigana || '',
+        ':birthdate': formData.birthdate || existingUser.birthdate || '',
+        ':gender': formData.gender !== undefined ? formData.gender : (existingUser.gender || ''),
+        ':phone': formData.phone || existingUser.phone || '',
+        ':address': formData.address || existingUser.address || '',
+        ':password': passwordToSave,
+        ':updatedAt': new Date().toISOString(),
       },
     });
-    await docClient.send(putCommand);
 
-    // 4. メールアドレス（主キー）が変更されていた場合、古いレコードを削除
-    if (oldEmail !== newEmail) {
-      const deleteCommand = new DeleteCommand({
-        TableName: USERS_TABLE,
-        Key: { email: oldEmail },
-      });
-      await docClient.send(deleteCommand);
-    }
+    await docClient.send(updateCommand);
 
     return NextResponse.json({ success: true, message: '更新成功しました' });
   } catch (error: any) {

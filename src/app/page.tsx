@@ -18,21 +18,18 @@ export default function UserLoginPage() {
   const [newPasswordReset, setNewPasswordReset] = useState('');
   const [confirmPasswordReset, setConfirmPasswordReset] = useState('');
 
+  // 必要な基本項目だけに絞る（余計な個別カラムを増やさない）
   const emptyData = {
-    lastName: '',
-    firstName: '',
-    lastNameKana: '',
-    firstNameKana: '',
+    name: '',
+    furigana: '',
     birthdate: '',
+    gender: '',
     phone: '',
     postalCode: '',
     prefecture: '',
     city: '',
-    addressLine: '',
-    building: '',
     address: '',
     email: '',
-    currentPasswordForAuth: '',
     newPassword: '',
     confirmPassword: '',
   };
@@ -42,7 +39,7 @@ export default function UserLoginPage() {
   const [updateMessage, setUpdateMessage] = useState('');
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  // ★ 日本語の生年月日（例: "1999年7月25日"）を date input 用（"1999-07-25"）に変換するヘルパー
+  // 日本語の生年月日（例: "1999年7月25日"）を date input 用（"1999-07-25"）に変換するヘルパー
   const parseBirthdate = (dateStr: string) => {
     if (!dateStr) return '';
     const match = dateStr.match(/([0-9]{4})年([0-9]{1,2})月([0-9]{1,2})日/);
@@ -52,7 +49,7 @@ export default function UserLoginPage() {
       const d = match[3].padStart(2, '0');
       return `${y}-${m}-${d}`;
     }
-    return dateStr; // すでに "YYYY-MM-DD" の場合など
+    return dateStr;
   };
 
   useEffect(() => {
@@ -67,59 +64,17 @@ export default function UserLoginPage() {
 
           const data = result.user;
           if (data) {
-            const nameParts = (data.name || '').split(/[\s ]+/);
-            const lName = data.lastName || nameParts[0] || '';
-            const fName = data.firstName || nameParts[1] || '';
-
-            const kanaParts = (data.furigana || '').split(/[\s ]+/);
-            const lNameKana = data.lastNameKana || kanaParts[0] || '';
-            const fNameKana = data.firstNameKana || kanaParts[1] || '';
-
-            let pCode = data.postalCode || '';
-            let pref = data.prefecture || '';
-            let cty = data.city || '';
-            let aLine = data.addressLine || '';
-            let bldg = data.building || '';
-
-            if (!pCode && data.address) {
-              const match = data.address.match(/〒?([0-9]{3}-?[0-9]{4})\s*(.*)/);
-              if (match) {
-                pCode = match[1].replace('-', '');
-                const rest = match[2];
-                const prefMatch = rest.match(/^(東京都|北海道|大阪府|京都府|.{2,3}県)(.+)/);
-                if (prefMatch) {
-                  pref = prefMatch[1];
-                  const cityAndRest = prefMatch[2];
-                  const cityMatch = cityAndRest.match(/^(.+?[市町村区])(.+)/);
-                  if (cityMatch) {
-                    cty = cityMatch[1];
-                    aLine = cityMatch[2].trim();
-                  } else {
-                    aLine = cityAndRest;
-                  }
-                } else {
-                  aLine = rest;
-                }
-              } else {
-                aLine = data.address;
-              }
-            }
-
             const loadedData = {
-              lastName: lName,
-              firstName: fName,
-              lastNameKana: lNameKana,
-              firstNameKana: fNameKana,
+              name: data.name || '',
+              furigana: data.furigana || '',
               birthdate: parseBirthdate(data.birthdate || ''),
+              gender: data.gender || '',
               phone: data.phone || '',
-              postalCode: pCode,
-              prefecture: pref,
-              city: cty,
-              addressLine: aLine,
-              building: bldg,
+              postalCode: data.postalCode || '',
+              prefecture: data.prefecture || '',
+              city: data.city || '',
               address: data.address || '',
               email: data.email || '',
-              currentPasswordForAuth: '',
               newPassword: '',
               confirmPassword: '',
             };
@@ -138,17 +93,14 @@ export default function UserLoginPage() {
   }, [step, currentUserUid, isDataLoaded]);
 
   const fieldLabels: { [key: string]: string } = {
-    lastName: 'お名前 (姓)',
-    firstName: 'お名前 (名)',
-    lastNameKana: 'フリガナ (セイ)',
-    firstNameKana: 'フリガナ (メイ)',
+    name: 'お名前',
+    furigana: 'フリガナ',
     birthdate: '生年月日',
+    gender: '性別',
     phone: '電話番号',
     postalCode: '郵便番号',
     prefecture: '都道府県',
-    city: '市区町村・町域',
-    addressLine: 'それ以降の住所',
-    building: '建物名・部屋番号',
+    city: '市区町村・住所',
     email: 'メールアドレス (ログインID)',
     newPassword: 'パスワード',
   };
@@ -209,7 +161,7 @@ export default function UserLoginPage() {
     setFormData(prev => ({ ...prev, phone: formatted }));
   };
 
-  const targetKeys = ['lastName', 'firstName', 'lastNameKana', 'firstNameKana', 'birthdate', 'phone', 'postalCode', 'prefecture', 'city', 'addressLine', 'building', 'email', 'newPassword'];
+  const targetKeys = ['name', 'furigana', 'birthdate', 'gender', 'phone', 'postalCode', 'prefecture', 'city', 'address', 'email', 'newPassword'];
 
   const isModified = targetKeys.some(key => isFieldChanged(key as keyof typeof formData));
 
@@ -261,7 +213,6 @@ export default function UserLoginPage() {
     setErrorMessage('');
 
     setTimeout(() => {
-      // ★ セキュリティ修正: 固定コード '123456' を排除し、正当な generatedCode のみ許可
       if (inputCode === generatedCode) { 
         setStep('dashboard');
         setIsDataLoaded(false);
@@ -314,7 +265,6 @@ export default function UserLoginPage() {
     e.preventDefault();
     setErrorMessage('');
 
-    // ★ セキュリティ修正: 固定コード '123456' を排除
     if (inputCode !== generatedCode) {
       setErrorMessage('認証コードが間違っています。');
       return;
@@ -408,7 +358,6 @@ export default function UserLoginPage() {
 
   const handleVerifyEmailMfa = async (e: React.FormEvent) => {
     e.preventDefault();
-    // ★ セキュリティ修正: 固定コード '123456' を排除
     if (inputCode === generatedCode) {
       await executeSave();
     } else {
@@ -437,7 +386,7 @@ export default function UserLoginPage() {
         setCurrentUserUid(formData.email.trim().toLowerCase());
       }
 
-      setInitialData({ ...formData, currentPasswordForAuth: '', newPassword: '', confirmPassword: '' });
+      setInitialData({ ...formData, newPassword: '', confirmPassword: '' });
       setIsDataLoaded(false);
       setUpdateMessage('登録情報を正常に上書き保存しました！');
       setStep('dashboard');
@@ -632,7 +581,27 @@ export default function UserLoginPage() {
                 targetKeys.filter(key => isFieldChanged(key as keyof typeof formData)).map(key => {
                   const label = fieldLabels[key] || key;
                   const oldValue = (initialData as any)[key] || '(なし)';
-                  const newValue = key === 'newPassword' ? '•••••••• (変更あり)' : (formData as any)[key];
+                  let newValue = key === 'newPassword' ? '•••••••• (変更あり)' : (formData as any)[key];
+                  
+                  if (key === 'gender') {
+                    const formatGender = (val: string) => {
+                      if (val === 'male') return '男性';
+                      if (val === 'female') return '女性';
+                      if (val === 'prefer_not_to_say') return '回答不可';
+                      return val || '(なし)';
+                    };
+                    return (
+                      <div key={key} style={{ background: '#f8fafc', border: '1.5px solid #bbf7d0', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '6px', boxSizing: 'border-box' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: '#166534' }}>✨ {label} の変更</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '14px', flexWrap: 'wrap' }}>
+                          <span style={{ color: '#94a3b8', textDecoration: 'line-through', wordBreak: 'break-all' }}>{formatGender(initialData.gender)}</span>
+                          <span style={{ color: '#166534', fontWeight: 'bold' }}>➔</span>
+                          <span style={{ color: '#0f172a', fontWeight: '700', wordBreak: 'break-all' }}>{formatGender(formData.gender)}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div key={key} style={{ background: '#f8fafc', border: '1.5px solid #bbf7d0', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '6px', boxSizing: 'border-box' }}>
                       <span style={{ fontSize: '12px', fontWeight: '700', color: '#166534' }}>✨ {label} の変更</span>
@@ -685,35 +654,21 @@ export default function UserLoginPage() {
             <form onSubmit={handleProceedToConfirm} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isFieldChanged('lastName') ? '#16a34a' : '#475569' }}>
-                    {isFieldChanged('lastName') ? '✨ お名前 (姓) [変更あり]' : 'お名前 (姓)'}
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isFieldChanged('name') ? '#16a34a' : '#475569' }}>
+                    {isFieldChanged('name') ? '✨ お名前 [変更あり]' : 'お名前'}
                   </label>
-                  <input type="text" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} style={getInputStyle('lastName')} />
+                  <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={getInputStyle('name')} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isFieldChanged('firstName') ? '#16a34a' : '#475569' }}>
-                    {isFieldChanged('firstName') ? '✨ お名前 (名) [変更あり]' : 'お名前 (名)'}
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isFieldChanged('furigana') ? '#16a34a' : '#475569' }}>
+                    {isFieldChanged('furigana') ? '✨ フリガナ [変更あり]' : 'フリガナ'}
                   </label>
-                  <input type="text" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} style={getInputStyle('firstName')} />
+                  <input type="text" value={formData.furigana} onChange={e => setFormData({...formData, furigana: e.target.value})} style={getInputStyle('furigana')} />
                 </div>
               </div>
 
-              <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isFieldChanged('lastNameKana') ? '#16a34a' : '#475569' }}>
-                    {isFieldChanged('lastNameKana') ? '✨ フリガナ (セイ) [変更あり]' : 'フリガナ (セイ)'}
-                  </label>
-                  <input type="text" value={formData.lastNameKana} onChange={e => setFormData({...formData, lastNameKana: e.target.value})} style={getInputStyle('lastNameKana')} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isFieldChanged('firstNameKana') ? '#16a34a' : '#475569' }}>
-                    {isFieldChanged('firstNameKana') ? '✨ フリガナ (メイ) [変更あり]' : 'フリガナ (メイ)'}
-                  </label>
-                  <input type="text" value={formData.firstNameKana} onChange={e => setFormData({...formData, firstNameKana: e.target.value})} style={getInputStyle('firstNameKana')} />
-                </div>
-              </div>
-
-              <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              {/* 生年月日・性別・電話番号の3カラム配置 */}
+              <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isFieldChanged('birthdate') ? '#16a34a' : '#475569' }}>
                     {isFieldChanged('birthdate') ? '✨ 生年月日 [変更あり]' : '生年月日'}
@@ -721,10 +676,21 @@ export default function UserLoginPage() {
                   <input type="date" value={formData.birthdate} onChange={e => setFormData({...formData, birthdate: e.target.value})} style={getInputStyle('birthdate')} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isFieldChanged('phone') ? '#16a34a' : '#475569' }}>
-                    {isFieldChanged('phone') ? '✨ 電話番号 (自動ハイフン) [変更あり]' : '電話番号 (自動ハイフン)'}
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isFieldChanged('gender') ? '#16a34a' : '#475569' }}>
+                    {isFieldChanged('gender') ? '✨ 性別 [変更あり]' : '性別'}
                   </label>
-                  <input type="text" value={formData.phone} onChange={e => handlePhoneChange(e.target.value)} placeholder="05000000000" maxLength={13} style={getInputStyle('phone')} />
+                  <select value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} style={getInputStyle('gender')}>
+                    <option value="">選択してください</option>
+                    <option value="male">男性</option>
+                    <option value="female">女性</option>
+                    <option value="prefer_not_to_say">回答不可</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isFieldChanged('phone') ? '#16a34a' : '#475569' }}>
+                    {isFieldChanged('phone') ? '✨ 電話番号 [変更あり]' : '電話番号'}
+                  </label>
+                  <input type="text" value={formData.phone} onChange={e => handlePhoneChange(e.target.value)} placeholder="090-0000-0000" maxLength={13} style={getInputStyle('phone')} />
                 </div>
               </div>
 
@@ -744,23 +710,16 @@ export default function UserLoginPage() {
                     <input type="text" value={formData.prefecture} readOnly placeholder="自動入力" style={{ ...getInputStyle('prefecture'), background: '#f1f5f9', color: '#64748b' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', marginBottom: '4px', color: isFieldChanged('city') ? '#16a34a' : '#64748b' }}>市区町村・町域</label>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', marginBottom: '4px', color: isFieldChanged('city') ? '#16a34a' : '#64748b' }}>市区町村・住所</label>
                     <input type="text" value={formData.city} readOnly placeholder="自動入力" style={{ ...getInputStyle('city'), background: '#f1f5f9', color: '#64748b' }} />
                   </div>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', marginBottom: '4px', color: isFieldChanged('addressLine') ? '#16a34a' : '#64748b' }}>
-                    それ以降の住所 (番地など) {isFieldChanged('addressLine') && '[変更あり]'}
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', marginBottom: '4px', color: isFieldChanged('address') ? '#16a34a' : '#64748b' }}>
+                    ご住所全体 {isFieldChanged('address') && '[変更あり]'}
                   </label>
-                  <input type="text" value={formData.addressLine} onChange={e => setFormData({...formData, addressLine: e.target.value})} placeholder="例: 中央1-1-1" style={getInputStyle('addressLine')} />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', marginBottom: '4px', color: isFieldChanged('building') ? '#16a34a' : '#64748b' }}>
-                    建物名・部屋番号 (任意) {isFieldChanged('building') && '[変更あり]'}
-                  </label>
-                  <input type="text" value={formData.building} onChange={e => setFormData({...formData, building: e.target.value})} placeholder="例: ○○ビル 302号室" style={getInputStyle('building')} />
+                  <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="例: 宮城野区岩切28-7" style={getInputStyle('address')} />
                 </div>
               </div>
 
